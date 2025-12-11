@@ -1,0 +1,8 @@
+[project]
+name = "solution-yolo-v11"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "ipykernel>=7.1.0",
+    "ultralytics>=8.3.235",
+]
