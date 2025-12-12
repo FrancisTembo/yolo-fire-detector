@@ -47,6 +47,7 @@ This project was developed and tested on the following system configuration:
 - **PyTorch**: 2.9.1+cu128
 - **GPU**: NVIDIA GeForce RTX 3050 Laptop GPU (3768MiB VRAM)
 - **CUDA**: Version 12.8
+- **FFMPEG**: Version 6.1.1-3ubuntu5
 
 ## Installation
 
@@ -139,12 +140,6 @@ Run inference on various input sources [2]:
 uv run python inference.py --model path/to/model/weights --source path/to/image.jpg
 ```
 
-**Image folder:**
-
-```bash
-uv run python inference.py --model path/to/model/weights --source path/to/folder/
-```
-
 **Video file:**
 
 ```bash
@@ -173,7 +168,7 @@ uv run python inference.py --model path/to/model/weights --source usb0 --resolut
 | `--resolution` | Display resolution (WxH format) | Source resolution |
 | `--record` | Enable video recording | False |
 | `--output` | Output filename for recorded video | demo1.avi |
-| `--save_predictions` | Path to save prediction CSV | None |
+| `--save-predictions` | Path to save prediction CSV | None |
 
 ## Configuration
 
