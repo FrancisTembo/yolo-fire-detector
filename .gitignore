@@ -3,6 +3,10 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# YOLO training 
+dataset/
+runs/
+
 # C extensions
 *.so
 

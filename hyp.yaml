@@ -1,0 +1,9 @@
+epochs: 100             
+batch: 12
+imgsz: 640
+device: 0
+patience: 10
+save_period: 1   
+plots: True      
+optimizer: 'auto'
+cos_lr: True
