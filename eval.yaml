@@ -1,7 +1,7 @@
 batch: 12
 imgsz: 640
 device: 0
-conf: 0.25
+conf: 0.001
 plots: True      
 iou: 0.7
 save_json: True
