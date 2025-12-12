@@ -6,7 +6,8 @@ __pycache__/
 # YOLO training 
 dataset/
 runs/
-*.pt
+yolo11n.pt
+yolo11s.pt
 
 # C extensions
 *.so
