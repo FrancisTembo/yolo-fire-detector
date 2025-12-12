@@ -99,6 +99,54 @@ def run_inference_loop(
     return avg_fps
 
 
+def setup_components(config: DetectionConfig) -> tuple:
+    """
+    Initialise all inference components.
+    
+    Parameters
+    ----------
+    config : DetectionConfig
+        Configuration parameters for detection
+        
+    Returns
+    -------
+    tuple
+        (model, source_manager, visualizer, recorder, prediction_logger)
+        
+    Raises
+    ------
+    ValueError
+        If recording is requested with invalid configuration
+    """
+    # Load model
+    print(f'Loading model from {config.model_path}...')
+    model = YOLO(config.model_path, task='detect')
+    
+    # Initialise source manager
+    source_manager = SourceManager(config.source, config.resolution)
+    
+    # Initialise visualiser
+    visualizer = DetectionVisualiser(model.names, config.confidence_threshold)
+    
+    # Setup recorder if enabled
+    recorder = None
+    if config.record:
+        if source_manager.source_type not in ['video', 'usb']:
+            raise ValueError('Recording only works for video and camera sources.')
+        if not config.resolution:
+            raise ValueError('Please specify resolution to record video at.')
+        recorder = VideoRecorder(config.output, DEFAULT_RECORD_FPS, config.resolution)
+        print(f'Annotated video will be saved to {config.output}')
+    
+    # Setup prediction logger if enabled
+    prediction_logger = None
+    if config.save_predictions:
+        prediction_logger = PredictionLogger(config.save_predictions, model.names)
+        print(f'Predictions will be saved to {config.save_predictions}')
+    
+    return model, source_manager, visualizer, recorder, prediction_logger
+
+
 def main() -> None:
     """
     Main entry point for YOLO detection script.
@@ -136,40 +184,16 @@ def main() -> None:
             save_predictions=args.save_predictions
         )
         
-        # Load model
-        print(f'Loading model from {config.model_path}...')
-        model = YOLO(config.model_path, task='detect')
-        labels = model.names
+        # Setup all components
+        model, source_manager, visualizer, recorder, prediction_logger = setup_components(config)
         
-        # Initialise source manager
-        source_manager = SourceManager(config.source, config.resolution)
-        
-        # Validate recording setup
-        recorder = None
-        if config.record:
-            if source_manager.source_type not in ['video', 'usb']:
-                raise ValueError('Recording only works for video and camera sources.')
-            if not config.resolution:
-                raise ValueError('Please specify resolution to record video at.')
-            recorder = VideoRecorder(config.output, DEFAULT_RECORD_FPS, config.resolution)
-            print(f'Annotated video will be saved to {config.output}')
-        
-        # Initialise visualiser
-        visualizer = DetectionVisualiser(labels, config.confidence_threshold)
-        
-        # Initialise prediction logger if enabled
-        prediction_logger = None
-        if config.save_predictions:
-            prediction_logger = PredictionLogger(config.save_predictions, labels)
-            print(f'Predictions will be saved to {config.save_predictions}')
-        
-        # Run inference
+        # Run inference with context manager for automatic cleanup
         print('Starting inference...')
-        avg_fps = run_inference_loop(model, source_manager, visualizer, config, recorder, prediction_logger)
+        with source_manager:
+            avg_fps = run_inference_loop(model, source_manager, visualizer, config, recorder, prediction_logger)
+            print(f'Average pipeline FPS: {avg_fps:.2f}')
         
-        # Cleanup
-        print(f'Average pipeline FPS: {avg_fps:.2f}')
-        source_manager.release()
+        # Cleanup recorders and loggers
         if recorder:
             recorder.release()
             print(f'Annotated video saved to {config.output}')

@@ -1,12 +1,15 @@
 import os
 import glob
-from typing import Tuple, Optional, List
+import logging
+from typing import Tuple, Optional, List, Union
 
 import cv2
 import numpy as np
 from numpy.typing import NDArray
 
 from .config import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
+
+logger = logging.getLogger(__name__)
 
 
 class SourceManager:
@@ -79,18 +82,32 @@ class SourceManager:
         Initialise the appropriate source handler.
         
         Sets up the video capture or image list based on source type.
+        
+        Raises
+        ------
+        ValueError
+            If USB camera identifier is invalid
+        RuntimeError
+            If video source fails to open
         """
         if self.source_type == 'image':
             self.imgs_list = [self.source]
         elif self.source_type == 'folder':
-            filelist = glob.glob(self.source + '/*')
-            self.imgs_list = [f for f in filelist if os.path.splitext(f)[1] in IMAGE_EXTENSIONS]
+            filelist = glob.glob(os.path.join(self.source, '*'))
+            self.imgs_list = sorted([f for f in filelist if os.path.splitext(f)[1].lower() in IMAGE_EXTENSIONS])
         elif self.source_type in ['video', 'usb']:
-            cap_arg = self.source if self.source_type == 'video' else int(self.source[3:])
+            cap_arg: Union[str, int] = self.source
+            if self.source_type == 'usb':
+                try:
+                    cap_arg = int(self.source.replace('usb', ''))
+                except ValueError:
+                    raise ValueError(f'Invalid USB camera identifier: {self.source}')
             self.cap = cv2.VideoCapture(cap_arg)
+            if not self.cap.isOpened():
+                raise RuntimeError(f'Failed to open video source: {self.source}')
             if self.resolution:
-                self.cap.set(3, self.resolution[0])
-                self.cap.set(4, self.resolution[1])
+                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
+                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
     
     def read_frame(self) -> Optional[NDArray[np.uint8]]:
         """
@@ -103,17 +120,23 @@ class SourceManager:
         """
         if self.source_type in ['image', 'folder']:
             if self.img_count >= len(self.imgs_list):
-                print('All images have been processed. Exiting program.')
+                logger.info('All images have been processed.')
                 return None
             frame = cv2.imread(self.imgs_list[self.img_count])
+            if frame is None:
+                logger.warning(f'Failed to read image: {self.imgs_list[self.img_count]}')
+                self.img_count += 1
+                return self.read_frame()  # Try next image
             self.img_count += 1
             return frame
         elif self.source_type in ['video', 'usb']:
+            if self.cap is None or not self.cap.isOpened():
+                logger.error('Video capture is not initialised or has been released.')
+                return None
             ret, frame = self.cap.read()
             if not ret or frame is None:
-                msg = 'Reached end of the video file.' if self.source_type == 'video' else \
-                      'Unable to read frames from the camera. This indicates the camera is disconnected or not working.'
-                print(msg + ' Exiting program.')
+                msg = 'Reached end of video.' if self.source_type == 'video' else 'Camera read failed.'
+                logger.info(msg)
                 return None
             return frame
         return None
@@ -126,6 +149,30 @@ class SourceManager:
         """
         if self.cap is not None:
             self.cap.release()
+    
+    def __enter__(self) -> 'SourceManager':
+        """Enter context manager."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit context manager and release resources."""
+        self.release()
+    
+    @property
+    def total_frames(self) -> Optional[int]:
+        """
+        Return total frame count if known.
+        
+        Returns
+        -------
+        Optional[int]
+            Total number of frames, or None for live camera sources
+        """
+        if self.source_type in ['image', 'folder']:
+            return len(self.imgs_list)
+        elif self.source_type == 'video' and self.cap:
+            return int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        return None
     
     def is_realtime(self) -> bool:
         """

@@ -55,7 +55,7 @@ def main():
     """
     args = parse_args()
     model = build_model(args.model)
-    train(model, args.data, args.hyp)
+    train(model, args.data, args.hyp) #type: ignore
 
 if __name__ == "__main__":
     main()
